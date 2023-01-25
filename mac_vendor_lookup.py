@@ -35,7 +35,7 @@ class BaseMacLookup(object):
             raise InvalidMacError("{} contains unexpected character".format(_mac))
         if len(mac) > 12:
             raise InvalidMacError("{} is not a valid MAC address (too long)".format(_mac))
-        return mac
+        return bytes.fromhex(mac)
 
     def get_last_updated(self):
         vendors_location = self.find_vendors_list()
@@ -63,16 +63,16 @@ class AsyncMacLookup(BaseMacLookup):
         logging.log(logging.DEBUG, "Downloading MAC vendor list")
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
-                async with aiofiles.open(AsyncMacLookup.cache_path, mode='wb') as f:
+                async with aiofiles.open(AsyncMacLookup.cache_path, mode='wt', encoding='utf-8') as f:
                     self.prefixes = {}
                     while True:
-                        line = await response.content.readline()
+                        line = (await response.content.readline()).decode("utf-8")
                         if not line:
                             break
-                        if b"(base 16)" in line:
-                            prefix, vendor = (i.strip() for i in line.split(b"(base 16)", 1))
+                        if "(base 16)" in line:
+                            prefix, vendor = (i.strip() for i in line.split("(base 16)", 1))
                             self.prefixes[prefix] = vendor
-                            await f.write(prefix + b":" + vendor + b"\n")
+                            await f.write(prefix + ":" + vendor + "\n")
 
     async def load_vendors(self):
         self.prefixes = {}
@@ -80,12 +80,12 @@ class AsyncMacLookup(BaseMacLookup):
         vendors_location = self.find_vendors_list()
         if vendors_location:
             logging.log(logging.DEBUG, "Loading vendor list from {}".format(vendors_location))
-            async with aiofiles.open(vendors_location, mode='rb') as f:
+            async with aiofiles.open(vendors_location, mode='rt', encoding='utf-8') as f:
                 # Loading the entire file into memory, then splitting is
                 # actually faster than streaming each line. (> 1000x)
                 for l in (await f.read()).splitlines():
-                    prefix, vendor = l.split(b":", 1)
-                    self.prefixes[prefix] = vendor
+                    prefix, vendor = l.split(":", 1)
+                    self.prefixes[bytes.fromhex(prefix)] = vendor
         else:
             try:
                 os.makedirs("/".join(AsyncMacLookup.cache_path.split("/")[:-1]))
@@ -95,13 +95,12 @@ class AsyncMacLookup(BaseMacLookup):
         logging.log(logging.DEBUG, "Vendor list successfully loaded: {} entries".format(len(self.prefixes)))
 
     async def lookup(self, mac):
-        mac = self.sanitise(mac)
         if not self.prefixes:
             await self.load_vendors()
-        if type(mac) == str:
-            mac = mac.encode("utf8")
+        if isinstance(mac, str):
+            mac = self.sanitise(mac)
         try:
-            return self.prefixes[mac[:6]].decode("utf8")
+            return self.prefixes[mac[:3]]
         except KeyError:
             raise VendorNotFoundError(mac)
 
