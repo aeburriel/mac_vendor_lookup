@@ -72,7 +72,7 @@ class AsyncMacLookup(BaseMacLookup):
                         if "(base 16)" in line:
                             prefix, vendor = (i.strip() for i in line.split("(base 16)", 1))
                             self.prefixes[prefix] = vendor
-                            await f.write(prefix + ":" + vendor + "\n")
+                            await f.write(f"{prefix}:{vendor}\n")
 
     async def load_vendors(self):
         self.prefixes = {}
