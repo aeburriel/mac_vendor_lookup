@@ -19,7 +19,7 @@ class VendorNotFoundError(KeyError):
         self.mac = mac
 
     def __str__(self):
-        return f"The vendor for MAC {self.mac} could not be found. " \
+        return f"The vendor for MAC {self.mac.hex(':')} could not be found. " \
                f"Either it's not registered or the local list is out of date. Try MacLookup().update_vendors()"
 
 
